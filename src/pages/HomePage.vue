@@ -26,6 +26,12 @@
           <div class="stat-value">{{ completedTasks }}</div>
           <div class="stat-label">Виконано</div>
         </div>
+
+        <div class="stat-card stat-card-pending">
+          <f7-icon f7="clock" />
+          <div class="stat-value">{{ pendingTasks }}</div>
+          <div class="stat-label">Очікує виконання</div>
+        </div>
       </div>
 
       <div class="section-heading">
@@ -70,6 +76,10 @@ const totalTasks = computed(() => tasks.length);
 
 const completedTasks = computed(
   () => tasks.filter(t => t.completed).length
+);
+
+const pendingTasks = computed(
+  () => totalTasks.value - completedTasks.value
 );
 
 const recentTasks = computed(

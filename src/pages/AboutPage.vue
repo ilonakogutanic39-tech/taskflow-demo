@@ -34,6 +34,19 @@
         <h3>Версія</h3>
         <p>1.0.0 — навчальний проєкт</p>
       </div>
+
+      <div class="info-card">
+        <h3>Допомога</h3>
+        <p>Правила використання застосунку TaskFlow.</p>
+
+        <f7-button
+          fill
+          href="/help/"
+          class="page-action"
+        >
+          Переглянути інструкцію
+        </f7-button>
+      </div>
     </div>
 
     <AppTabbar active="about" />
