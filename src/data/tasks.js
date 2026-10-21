@@ -23,4 +23,22 @@ export const tasks = [
     description: 'Оформлення результатів',
     completed: false,
   },
+  {
+    id: 5,
+    title: 'Створити сторінку допомоги',
+    description: 'Додати інструкцію та маршрут /help/',
+    completed: true,
+  },
+  {
+    id: 6,
+    title: 'Перевірити адаптивність',
+    description: 'Тестування інтерфейсу на вузькому екрані',
+    completed: true,
+  },
+  {
+    id: 7,
+    title: 'Перевірити фінальну версію',
+    description: 'Збірка та тестування застосунку',
+    completed: false,
+  },
 ];

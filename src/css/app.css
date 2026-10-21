@@ -4,6 +4,7 @@
   --taskflow-primary: #2563eb;
   --taskflow-success: #059669;
   --taskflow-radius: 14px;
+  --taskflow-active: #7c3aed;
 }
 
 .page {
@@ -281,7 +282,7 @@
 }
 
 .app-tabbar .app-link-active {
-  color: var(--taskflow-primary);
+  color: var(--taskflow-active);
 }
 
 /* Адаптивність */
@@ -301,11 +302,22 @@
     padding: 16px 12px 90px;
   }
 
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat-card-pending {
+    grid-column: auto;
+  }
+
   .stat-card {
     padding: 14px;
+    border-radius: 12px;
   }
 
   .stat-value {
+    margin-top: 10px;
     font-size: 26px;
   }
 
