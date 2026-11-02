@@ -1,14 +1,26 @@
+
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import AppTabbar from '../components/AppTabbar.vue'
 import TaskCard from '../components/TaskCard.vue'
-import TaskCounter from '../components/TaskCounter.vue'
-import { taskState, setTaskStatus, setTaskPriority } from '../store/tasks'
+import TaskForm from '../components/TaskForm.vue'
+import {
+  taskState,
+  addTask,
+  updateTask,
+  setTaskStatus,
+  setTaskPriority,
+} from '../store/tasks'
 import '../css/task-components.css'
+import '../css/task-form.css'
 
 const selectedStatus = ref('all')
 const selectedPriority = ref('all')
-const selectedTaskId = ref(null)
+const searchQuery = ref('')
+const formVisible = ref(false)
+const editingId = ref(null)
+const formAnchor = ref(null)
+const feedback = ref('')
 
 const statusOptions = [
   { value: 'all', label: 'Усі' },
@@ -24,20 +36,15 @@ const priorityOptions = [
   { value: 'high', label: 'Високий' },
 ]
 
-const filteredTasks = computed(() => {
-  const order = { high: 0, medium: 1, low: 2 }
+const filteredTasks = computed(() => taskState.tasks.filter((task) => (
+  (selectedStatus.value === 'all' || task.status === selectedStatus.value) &&
+  (selectedPriority.value === 'all' || task.priority === selectedPriority.value) &&
+  task.title.toLowerCase().includes(searchQuery.value.trim().toLowerCase())
+)))
 
-  return taskState.tasks
-    .filter((task) => (
-      (selectedStatus.value === 'all' || task.status === selectedStatus.value) &&
-      (selectedPriority.value === 'all' || task.priority === selectedPriority.value)
-    ))
-    .sort((a, b) => order[a.priority] - order[b.priority])
-})
-
-const selectedTask = computed(() =>
-  taskState.tasks.find((task) => task.id === selectedTaskId.value)
-)
+const editingTask = computed(() => (
+  taskState.tasks.find((task) => task.id === editingId.value) ?? null
+))
 
 function handleStatusChange(payload) {
   setTaskStatus(payload)
@@ -47,8 +54,50 @@ function handlePriorityChange(payload) {
   setTaskPriority(payload)
 }
 
-function handleTaskSelect(payload) {
-  selectedTaskId.value = payload.id
+async function scrollToForm() {
+  await nextTick()
+  formAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function createTask() {
+  editingId.value = null
+  formVisible.value = true
+  feedback.value = ''
+  await scrollToForm()
+}
+
+async function editTask(id) {
+  editingId.value = id
+  formVisible.value = true
+  feedback.value = ''
+  await scrollToForm()
+}
+
+function cancelForm() {
+  formVisible.value = false
+  editingId.value = null
+}
+
+function saveTask(data) {
+  const isEditing = editingId.value !== null
+
+  const saved = isEditing
+    ? updateTask({ id: editingId.value, ...data })
+    : addTask(data)
+
+  if (!saved) {
+    feedback.value = 'Не вдалося зберегти завдання. Перевірте дані форми.'
+    return
+  }
+
+  feedback.value = isEditing
+    ? `Завдання «${saved.title}» оновлено.`
+    : `Завдання «${saved.title}» створено.`
+
+  cancelForm()
+  selectedStatus.value = 'all'
+  selectedPriority.value = 'all'
+  searchQuery.value = ''
 }
 </script>
 
@@ -61,9 +110,46 @@ function handleTaskSelect(payload) {
         <div class="tf3-eyebrow">TASKFLOW / TASK MANAGER</div>
         <h1>Мої завдання</h1>
         <p>Керуйте завданнями, статусами та пріоритетами.</p>
+
+        <button
+          type="button"
+          class="tf4-new-task"
+          @click="createTask"
+        >
+          + Додати завдання
+        </button>
+      </section>
+
+      <p v-if="feedback" class="tf4-feedback" role="status">
+        {{ feedback }}
+      </p>
+
+      <section
+        v-if="formVisible"
+        ref="formAnchor"
+        class="tf4-form-section"
+      >
+        <TaskForm
+          :key="editingId ?? 'new'"
+          :task="editingTask"
+          @save="saveTask"
+          @cancel="cancelForm"
+        />
       </section>
 
       <section class="tf3-filters">
+        <div class="tf3-filter-group">
+          <div class="tf3-filter-title">Пошук за назвою</div>
+
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Введіть назву завдання"
+            aria-label="Пошук завдань за назвою"
+            style="box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #42617d; border-radius: 9px; background: #0c192b; color: #f4f9ff; font: inherit;"
+          />
+        </div>
+
         <div class="tf3-filter-group">
           <div class="tf3-filter-title">Фільтр за статусом</div>
 
@@ -108,11 +194,9 @@ function handleTaskSelect(payload) {
             <h2>Список завдань</h2>
           </div>
 
-          <TaskCounter :count="filteredTasks.length" />
-        </div>
-
-        <div v-if="selectedTask" class="tf3-counter">
-          Вибране завдання: {{ selectedTask.title }}
+          <div class="tf3-counter">
+            Знайдено: {{ filteredTasks.length }}
+          </div>
         </div>
 
         <div v-if="filteredTasks.length" class="tf3-task-grid">
@@ -120,9 +204,10 @@ function handleTaskSelect(payload) {
             v-for="task in filteredTasks"
             :key="task.id"
             :task="task"
+            :editable="true"
             @status-change="handleStatusChange"
             @priority-change="handlePriorityChange"
-            @task-select="handleTaskSelect"
+            @edit="editTask"
           />
         </div>
 
