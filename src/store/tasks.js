@@ -64,7 +64,7 @@ export function addTask(data) {
   const normalized = normalizeTaskData(data)
   if (!normalized) return null
 
-  // Перевіряємо унікальність назви без урахування регістру.
+  // Перевірка унікальності назви без урахування регістру.
   const exists = taskState.tasks.some(
     (task) => task.title.trim().toLowerCase() === normalized.title.toLowerCase()
   )
@@ -105,4 +105,15 @@ export function setTaskPriority({ id, priority }) {
 
   const task = taskState.tasks.find((item) => item.id === id)
   if (task) task.priority = priority
+}
+
+export function deleteTask(id) {
+  const index = taskState.tasks.findIndex(
+    (task) => task.id === Number(id)
+  )
+
+  if (index === -1) return false
+
+  taskState.tasks.splice(index, 1)
+  return true
 }

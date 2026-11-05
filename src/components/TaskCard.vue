@@ -9,7 +9,12 @@ const props = defineProps({
   editable: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['status-change', 'priority-change', 'edit'])
+const emit = defineEmits([
+  'status-change',
+  'priority-change',
+  'edit',
+  'delete',
+])
 
 const statusSequence = ['todo', 'progress', 'done']
 const prioritySequence = ['low', 'medium', 'high']
@@ -67,7 +72,9 @@ function changePriority() {
         <StatusBadge :status="task.status" />
       </div>
 
-      <p class="tf3-card-description">{{ task.description }}</p>
+      <p class="tf3-card-description">
+        {{ task.description || 'Без опису' }}
+      </p>
 
       <div class="tf3-card-meta">
         <div class="tf3-meta-item">
@@ -85,7 +92,7 @@ function changePriority() {
         </div>
       </div>
 
-      <div class="tf3-card-actions">
+      <div class="tf3-card-actions tf5-card-actions">
         <button
           type="button"
           class="tf3-action tf3-action--primary"
@@ -109,6 +116,15 @@ function changePriority() {
           @click="emit('edit', task.id)"
         >
           Редагувати
+        </button>
+
+        <button
+          v-if="editable"
+          type="button"
+          class="tf3-action tf5-danger"
+          @click="emit('delete', task.id)"
+        >
+          Видалити
         </button>
       </div>
     </f7-card-content>
