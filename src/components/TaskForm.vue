@@ -1,26 +1,44 @@
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
-import { taskState } from '../store/tasks'
+import { computed, reactive, ref, watch } from 'vue'
+import { useTasksStore } from '../store/tasks'
 
 const props = defineProps({
   task: { type: Object, default: null },
+  projects: { type: Array, required: true },
 })
 
 const emit = defineEmits(['save', 'cancel'])
+const taskStore = useTasksStore()
 
 // Копіюємо поля, щоб не змінювати завдання до збереження.
 const form = reactive({
-  title: props.task?.title ?? '',
-  description: props.task?.description ?? '',
-  status: props.task?.status ?? 'todo',
-  priority: props.task?.priority ?? 'medium',
-  category: props.task?.category ?? 'study',
-  dueDate: props.task?.dueDate ?? '',
+  title: '',
+  description: '',
+  status: 'todo',
+  priority: 'medium',
+  category: 'study',
+  dueDate: '',
+  projectId: 'general',
 })
 
 const showErrors = ref(false)
 const isEditing = computed(() => props.task !== null)
+
+watch(
+  () => props.task,
+  (task) => {
+    form.title = task?.title ?? ''
+    form.description = task?.description ?? ''
+    form.status = task?.status ?? 'todo'
+    form.priority = task?.priority ?? 'medium'
+    form.category = task?.category ?? 'study'
+    form.dueDate = task?.dueDate ?? ''
+    form.projectId = task?.projectId ?? 'general'
+    showErrors.value = false
+  },
+  { immediate: true }
+)
 
 const remainingTitle = computed(() => 80 - form.title.length)
 const remainingDescription = computed(() => 300 - form.description.length)
@@ -42,6 +60,12 @@ const categoryLabels = {
   work: 'Робота',
   personal: 'Особисте',
 }
+
+const selectedProjectTitle = computed(() =>
+  props.projects.find(
+    (project) => project.id === form.projectId
+  )?.title ?? 'Загальні'
+)
 
 function isValidDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -69,8 +93,10 @@ const errors = computed(() => {
     result.title = 'Назва має містити щонайменше 3 символи.'
   } else if (title.length > 80) {
     result.title = 'Максимальна довжина — 80 символів.'
-  } else if (!isEditing.value && taskState.tasks.some(
-    (task) => task.title.trim().toLowerCase() === title.toLowerCase()
+  } else if (!isEditing.value && taskStore.tasks.some(
+    (task) =>
+      task.title.trim().toLocaleLowerCase('uk-UA') ===
+      title.toLocaleLowerCase('uk-UA')
   )) {
     result.title = 'Завдання з такою назвою вже існує.'
   }
@@ -89,6 +115,12 @@ const errors = computed(() => {
 
   if (!['study', 'work', 'personal'].includes(form.category)) {
     result.category = 'Оберіть коректну категорію.'
+  }
+
+  if (!props.projects.some(
+    (project) => project.id === form.projectId
+  )) {
+    result.projectId = 'Оберіть проєкт зі списку.'
   }
 
   if (!isValidDate(form.dueDate)) {
@@ -110,6 +142,7 @@ function clearForm() {
   form.priority = 'medium'
   form.category = 'study'
   form.dueDate = ''
+  form.projectId = 'general'
   showErrors.value = false
 }
 
@@ -119,12 +152,14 @@ function submitForm() {
   if (Object.keys(errors.value).length > 0) return
 
   emit('save', {
+    id: props.task?.id ?? null,
     title: form.title.trim(),
     description: form.description.trim(),
     status: form.status,
     priority: form.priority,
     category: form.category,
     dueDate: form.dueDate,
+    projectId: form.projectId,
   })
 }
 </script>
@@ -271,6 +306,34 @@ function submitForm() {
       </div>
 
       <div class="tf4-field tf4-field--wide">
+        <label for="tf4-project">Проєкт *</label>
+
+        <select
+          id="tf4-project"
+          v-model="form.projectId"
+          :aria-invalid="showErrors && !!errors.projectId"
+          :aria-describedby="showErrors && errors.projectId ? 'tf4-project-error' : undefined"
+          aria-required="true"
+        >
+          <option
+            v-for="project in projects"
+            :key="project.id"
+            :value="project.id"
+          >
+            {{ project.title }}
+          </option>
+        </select>
+
+        <p
+          v-if="showErrors && errors.projectId"
+          id="tf4-project-error"
+          class="tf4-error"
+        >
+          {{ errors.projectId }}
+        </p>
+      </div>
+
+      <div class="tf4-field tf4-field--wide">
         <label for="tf4-date">Дата завершення *</label>
 
         <input
@@ -299,7 +362,8 @@ function submitForm() {
         <span>
           {{ statusLabels[form.status] }} ·
           {{ priorityLabels[form.priority] }} ·
-          {{ categoryLabels[form.category] }}
+          {{ categoryLabels[form.category] }} ·
+          {{ selectedProjectTitle }}
         </span>
       </div>
 

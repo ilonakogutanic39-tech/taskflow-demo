@@ -1,5 +1,5 @@
 
-/* Практична робота № 5. Доповнення до наявних стилів TaskFlow. */
+/* Практичні роботи № 5–6. Стилі списку завдань і проєктів. */
 
 .tf5-panel {
   margin: 22px 0;
@@ -30,7 +30,8 @@
 }
 
 .tf5-form label,
-.tf5-controls-grid label {
+.tf5-controls-grid label,
+.tf6-project-form label {
   display: grid;
   gap: 7px;
   color: #d7e4f5;
@@ -42,7 +43,8 @@
 .tf5-form textarea,
 .tf5-form select,
 .tf5-controls-grid input,
-.tf5-controls-grid select {
+.tf5-controls-grid select,
+.tf6-project-form input {
   box-sizing: border-box;
   display: block;
   width: 100%;
@@ -123,9 +125,57 @@
   color: #dae7f6;
 }
 
+/* Блок проєктів для КП 2/9. */
+
+.tf6-project-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.tf6-project-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #395a7d;
+  border-radius: 999px;
+  background: #203550;
+  color: #edf4ff;
+  font-size: 14px;
+}
+
+.tf6-project-pill strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #168fbd;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.tf6-project-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.tf6-project-form .tf5-btn {
+  min-height: 42px;
+}
+
+/* Адаптація до вузьких екранів. */
+
 @media (max-width: 680px) {
   .tf5-form-grid,
-  .tf5-controls-grid {
+  .tf5-controls-grid,
+  .tf6-project-form {
     grid-template-columns: 1fr;
   }
 
@@ -135,5 +185,9 @@
 
   .tf5-search {
     grid-column: auto;
+  }
+
+  .tf6-project-form .tf5-btn {
+    width: 100%;
   }
 }

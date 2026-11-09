@@ -1,40 +1,37 @@
+
 <script setup>
-import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import AppTabbar from '../components/AppTabbar.vue'
 import TaskCard from '../components/TaskCard.vue'
-import { taskState, setTaskStatus, setTaskPriority } from '../store/tasks'
+import { useTasksStore } from '../store/tasks'
+import { useProjectsStore } from '../store/projects'
 import '../css/task-components.css'
 
-const totalTasks = computed(() => taskState.tasks.length)
+const taskStore = useTasksStore()
+const projectStore = useProjectsStore()
 
-const completedTasks = computed(() => taskState.tasks.filter(
-  (task) => task.status === 'done').length)
+// Отримуємо реактивну статистику та актуальні завдання з Pinia.
+const {
+  totalTasks,
+  completedTasks,
+  progressTasks,
+  plannedTasks,
+  completionRate,
+  activeTasks,
+} = storeToRefs(taskStore)
 
-const progressTasks = computed(() => taskState.tasks.filter(
-  (task) => task.status === 'progress').length)
-
-const plannedTasks = computed(() => taskState.tasks.filter(
-  (task) => task.status === 'todo').length)
-
-const completionPercentage = computed(() => {
-  if (totalTasks.value === 0) return 0
-
-  return Math.round((completedTasks.value / totalTasks.value) * 100)
-})
-
-const activeTasks = computed(() => {
-  const order = { high: 0, medium: 1, low: 2 }
-
-  return taskState.tasks.filter((task) => task.status !== 'done')
-    .sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 3)
-})
+const { projectCount } = storeToRefs(projectStore)
 
 function handleStatusChange(payload) {
-  setTaskStatus(payload)
+  taskStore.setTaskStatus(payload)
 }
 
 function handlePriorityChange(payload) {
-  setTaskPriority(payload)
+  taskStore.setTaskPriority(payload)
+}
+
+function projectTitleFor(task) {
+  return projectStore.projectTitle(task.projectId)
 }
 </script>
 
@@ -50,7 +47,10 @@ function handlePriorityChange(payload) {
       <section class="tf3-hero">
         <div class="tf3-eyebrow">TASKFLOW / DASHBOARD</div>
         <h1>Панель керування</h1>
-        <p>Контролюйте виконання завдань та їхні пріоритети.</p>
+        <p>
+          Контролюйте виконання завдань та їхні пріоритети.
+          Проєктів: {{ projectCount }}.
+        </p>
       </section>
 
       <section class="tf3-stat-grid">
@@ -76,7 +76,7 @@ function handlePriorityChange(payload) {
 
         <div class="tf3-stat">
           <span class="tf3-stat-label">Відсоток виконання</span>
-          <strong>{{ completionPercentage }}%</strong>
+          <strong>{{ completionRate }}%</strong>
         </div>
       </section>
 
@@ -97,6 +97,7 @@ function handlePriorityChange(payload) {
             v-for="task in activeTasks"
             :key="task.id"
             :task="task"
+            :project-title="projectTitleFor(task)"
             @status-change="handleStatusChange"
             @priority-change="handlePriorityChange"
           />

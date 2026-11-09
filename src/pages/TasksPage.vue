@@ -1,131 +1,68 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import AppTabbar from '../components/AppTabbar.vue'
 import TaskCard from '../components/TaskCard.vue'
 import TaskForm from '../components/TaskForm.vue'
 import TaskListControls from '../components/TaskListControls.vue'
-import {
-  taskState,
-  addTask,
-  updateTask,
-  deleteTask,
-  setTaskStatus,
-  setTaskPriority,
-} from '../store/tasks'
+import { useTasksStore } from '../store/tasks'
+import { useProjectsStore } from '../store/projects'
 import '../css/task-components.css'
 import '../css/task-form.css'
 import '../css/task-list.css'
 
-const selectedStatus = ref('all')
-const selectedPriority = ref('all')
-const searchQuery = ref('')
-const sortOrder = ref('newest')
-const unfinishedOnly = ref(false)
+const taskStore = useTasksStore()
+const projectStore = useProjectsStore()
+
+const {
+  tasks,
+  visibleTasks,
+  searchText,
+  selectedStatus,
+  selectedPriority,
+  selectedProject,
+  sortOrder,
+  unfinishedOnly,
+  completionPercent,
+} = storeToRefs(taskStore)
+
+const { projects } = storeToRefs(projectStore)
 
 const formVisible = ref(false)
 const editingId = ref(null)
 const formAnchor = ref(null)
 const feedback = ref('')
+const newProjectTitle = ref('')
+const newProjectError = ref('')
 
-const visibleTasks = computed(() => {
-  const term = searchQuery.value.trim().toLocaleLowerCase('uk-UA')
-  const priorityWeight = { high: 3, medium: 2, low: 1 }
-  const statusWeight = { progress: 1, todo: 2, done: 3 }
+// Кількість завдань у кожному проєкті.
+const projectStats = computed(() =>
+  projects.value.map((project) => ({
+    ...project,
+    taskCount: tasks.value.filter(
+      (task) => task.projectId === project.id
+    ).length,
+  }))
+)
 
-  // Фільтрація за пошуком, статусом, пріоритетом і швидким фільтром.
-  const result = taskState.tasks.filter((task) => {
-    const matchesText = !term ||
-      `${task.title} ${task.description ?? ''}`
-        .toLocaleLowerCase('uk-UA')
-        .includes(term)
-
-    const matchesStatus =
-      selectedStatus.value === 'all' ||
-      task.status === selectedStatus.value
-
-    const matchesPriority =
-      selectedPriority.value === 'all' ||
-      task.priority === selectedPriority.value
-
-    const matchesUnfinished =
-      !unfinishedOnly.value || task.status !== 'done'
-
-    return matchesText &&
-      matchesStatus &&
-      matchesPriority &&
-      matchesUnfinished
-  })
-
-  // Сортуємо результат filter(), не змінюючи спільний масив.
-  return result.sort((a, b) => {
-    if (sortOrder.value === 'title') {
-      return a.title.localeCompare(b.title, 'uk-UA') || a.id - b.id
-    }
-
-    if (sortOrder.value === 'priority') {
-      return priorityWeight[b.priority] - priorityWeight[a.priority] ||
-        b.id - a.id
-    }
-
-    if (sortOrder.value === 'dueDate') {
-      const first = a.dueDate || '9999-12-31'
-      const second = b.dueDate || '9999-12-31'
-
-      return first.localeCompare(second) || b.id - a.id
-    }
-
-    if (sortOrder.value === 'status') {
-      return statusWeight[a.status] - statusWeight[b.status] ||
-        b.id - a.id
-    }
-
-    // Зворотне сортування за датою.
-    // Завдання без дати завжди залишаються наприкінці.
-    if (sortOrder.value === 'dueDateDesc') {
-      if (!a.dueDate && !b.dueDate) return b.id - a.id
-      if (!a.dueDate) return 1
-      if (!b.dueDate) return -1
-
-      return b.dueDate.localeCompare(a.dueDate) || b.id - a.id
-    }
-
-    return b.id - a.id
-  })
-})
-
-// Частка виконаних завдань серед знайдених.
-const completionPercent = computed(() => {
-  if (visibleTasks.value.length === 0) return 0
-
-  const completed = visibleTasks.value.filter(
-    (task) => task.status === 'done'
-  ).length
-
-  return Math.round((completed / visibleTasks.value.length) * 100)
-})
-
-// Перевірка повністю порожнього списку.
-const isTaskListEmpty = computed(() => taskState.tasks.length === 0)
+// Частина інтерфейсу, яка потрібна тільки цій сторінці.
+const isTaskListEmpty = computed(() => tasks.value.length === 0)
 
 const editingTask = computed(() =>
-  taskState.tasks.find((task) => task.id === editingId.value) ?? null
+  tasks.value.find((task) => task.id === editingId.value) ?? null
 )
 
 function resetFilters() {
-  searchQuery.value = ''
-  selectedStatus.value = 'all'
-  selectedPriority.value = 'all'
-  sortOrder.value = 'newest'
-  unfinishedOnly.value = false
+  taskStore.resetFilters()
 }
 
 function handleStatusChange(payload) {
-  setTaskStatus(payload)
+  taskStore.setTaskStatus(payload)
 }
 
 function handlePriorityChange(payload) {
-  setTaskPriority(payload)
+  taskStore.setTaskPriority(payload)
 }
 
 async function scrollToForm() {
@@ -159,8 +96,8 @@ function saveTask(data) {
   const isEditing = editingId.value !== null
 
   const saved = isEditing
-    ? updateTask({ id: editingId.value, ...data })
-    : addTask(data)
+    ? taskStore.updateTask({ ...data, id: editingId.value })
+    : taskStore.addTask(data)
 
   if (!saved) {
     feedback.value = 'Не вдалося зберегти завдання. Перевірте дані форми.'
@@ -176,7 +113,7 @@ function saveTask(data) {
 }
 
 function handleDelete(id) {
-  const task = taskState.tasks.find((item) => item.id === id)
+  const task = tasks.value.find((item) => item.id === Number(id))
   if (!task) return
 
   const confirmed = window.confirm(
@@ -185,10 +122,27 @@ function handleDelete(id) {
 
   if (!confirmed) return
 
-  if (deleteTask(id)) {
+  if (taskStore.deleteTask(id)) {
     if (editingId.value === id) cancelForm()
     feedback.value = `Завдання «${task.title}» видалено.`
   }
+}
+
+// Створення нового проєкту через Pinia.
+function createProject() {
+  const project = projectStore.addProject(newProjectTitle.value)
+
+  if (!project) {
+    newProjectError.value =
+      'Назва має містити 3–40 символів і не повторювати назви інших проєктів.'
+    return
+  }
+
+  newProjectTitle.value = ''
+  newProjectError.value = ''
+  selectedProject.value = project.id
+
+  feedback.value = `Проєкт «${project.title}» створено.`
 }
 </script>
 
@@ -201,8 +155,8 @@ function handleDelete(id) {
         <div class="tf3-eyebrow">TASKFLOW / TASK MANAGER</div>
         <h1>Мої завдання</h1>
         <p>
-          Створюйте, редагуйте, знаходьте,
-          сортуйте та видаляйте завдання.
+          Створюйте, редагуйте, знаходьте, сортуйте
+          завдання та керуйте проєктами через Pinia.
         </p>
 
         <button
@@ -218,6 +172,52 @@ function handleDelete(id) {
         {{ feedback }}
       </p>
 
+      <section class="tf5-panel tf6-project-panel" aria-label="Проєкти">
+        <h2>Мої проєкти</h2>
+
+        <div class="tf6-project-list">
+          <span
+            v-for="project in projectStats"
+            :key="project.id"
+            class="tf6-project-pill"
+          >
+            {{ project.title }}
+            <strong>{{ project.taskCount }}</strong>
+          </span>
+        </div>
+
+        <form
+          class="tf6-project-form"
+          @submit.prevent="createProject"
+        >
+          <label>
+            Назва нового проєкту
+            <input
+              v-model="newProjectTitle"
+              type="text"
+              maxlength="40"
+              placeholder="Наприклад: Лабораторні"
+              @input="newProjectError = ''"
+            />
+          </label>
+
+          <button
+            type="submit"
+            class="tf5-btn tf5-btn--primary"
+          >
+            Створити проєкт
+          </button>
+        </form>
+
+        <p
+          v-if="newProjectError"
+          class="tf5-error"
+          role="alert"
+        >
+          {{ newProjectError }}
+        </p>
+      </section>
+
       <section
         v-if="formVisible"
         ref="formAnchor"
@@ -226,17 +226,20 @@ function handleDelete(id) {
         <TaskForm
           :key="editingId ?? 'new'"
           :task="editingTask"
+          :projects="projects"
           @save="saveTask"
           @cancel="cancelForm"
         />
       </section>
 
       <TaskListControls
-        v-model:search="searchQuery"
+        v-model:search="searchText"
         v-model:status="selectedStatus"
         v-model:priority="selectedPriority"
+        v-model:project="selectedProject"
         v-model:sort="sortOrder"
         v-model:unfinishedOnly="unfinishedOnly"
+        :projects="projects"
         @reset="resetFilters"
       />
 
@@ -249,7 +252,7 @@ function handleDelete(id) {
 
           <div class="tf3-counter">
             Показано: {{ visibleTasks.length }}
-            із {{ taskState.tasks.length }}
+            із {{ tasks.length }}
             | Виконано: {{ completionPercent }}%
           </div>
         </div>
@@ -272,6 +275,7 @@ function handleDelete(id) {
             v-for="task in visibleTasks"
             :key="task.id"
             :task="task"
+            :project-title="projectStore.projectTitle(task.projectId)"
             :editable="true"
             @status-change="handleStatusChange"
             @priority-change="handlePriorityChange"

@@ -7,6 +7,7 @@ import PriorityBadge from './PriorityBadge.vue'
 const props = defineProps({
   task: { type: Object, required: true },
   editable: { type: Boolean, default: false },
+  projectTitle: { type: String, default: 'Загальні' },
 })
 
 const emit = defineEmits([
@@ -85,6 +86,11 @@ function changePriority() {
         <div class="tf3-meta-item">
           <span class="tf3-meta-label">Категорія:</span>
           <span>{{ categoryLabels[task.category] }}</span>
+        </div>
+
+        <div class="tf3-meta-item">
+          <span class="tf3-meta-label">Проєкт:</span>
+          <span>{{ projectTitle }}</span>
         </div>
 
         <div class="tf3-meta-date">
