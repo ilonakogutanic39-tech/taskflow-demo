@@ -1,17 +1,19 @@
 
 <script setup>
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppTabbar from '../components/AppTabbar.vue'
 import TaskCard from '../components/TaskCard.vue'
 import { useTasksStore } from '../store/tasks'
 import { useProjectsStore } from '../store/projects'
 import '../css/task-components.css'
+import '../css/task-list.css'
 
 const taskStore = useTasksStore()
 const projectStore = useProjectsStore()
 
-// Отримуємо реактивну статистику та актуальні завдання з Pinia.
 const {
+  tasks,
   totalTasks,
   completedTasks,
   progressTasks,
@@ -20,7 +22,30 @@ const {
   activeTasks,
 } = storeToRefs(taskStore)
 
-const { projectCount } = storeToRefs(projectStore)
+const { projectCount, projectStats } = storeToRefs(projectStore)
+
+// Статистика кожного проєкту.
+const projectOverview = computed(() =>
+  projectStats.value.map((project) => {
+    const projectTasks = tasks.value.filter(
+      (task) => task.projectId === project.id
+    )
+
+    const completed = projectTasks.filter(
+      (task) => task.status === 'done'
+    ).length
+
+    const total = projectTasks.length
+
+    return {
+      ...project,
+      unfinishedCount: total - completed,
+      completionPercent: total === 0
+        ? 0
+        : Math.round((completed / total) * 100),
+    }
+  })
+)
 
 function handleStatusChange(payload) {
   taskStore.setTaskStatus(payload)
@@ -77,6 +102,27 @@ function projectTitleFor(task) {
         <div class="tf3-stat">
           <span class="tf3-stat-label">Відсоток виконання</span>
           <strong>{{ completionRate }}%</strong>
+        </div>
+      </section>
+
+      <section class="tf5-panel" aria-label="Статистика проєктів">
+        <h2>Проєкти та невиконані завдання</h2>
+
+        <div class="tf6-project-list">
+          <div
+            v-for="project in projectOverview"
+            :key="project.id"
+            class="tf6-project-pill"
+          >
+            <div>
+              <div>{{ project.title }}</div>
+              <small>
+                Виконано: {{ project.completionPercent }}%
+              </small>
+            </div>
+
+            <strong>{{ project.unfinishedCount }}</strong>
+          </div>
         </div>
       </section>
 

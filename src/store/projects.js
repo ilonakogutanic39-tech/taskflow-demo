@@ -1,5 +1,6 @@
 
 import { defineStore } from 'pinia'
+import { useTasksStore } from './tasks'
 
 // Окреме сховище для каталогу проєктів.
 // Сховище лише в оперативній пам'яті: IndexedDB буде в роботі № 7.
@@ -15,8 +16,21 @@ export const useProjectsStore = defineStore('projects', {
 
   getters: {
     projectCount: (state) => state.projects.length,
+
     projectTitle: (state) => (id) =>
       state.projects.find((project) => project.id === id)?.title ?? 'Загальні',
+
+    // Кількість завдань у кожному проєкті.
+    projectStats(state) {
+      const taskStore = useTasksStore()
+
+      return state.projects.map((project) => ({
+        ...project,
+        taskCount: taskStore.tasks.filter(
+          (task) => task.projectId === project.id
+        ).length,
+      }))
+    },
   },
 
   actions: {
@@ -28,6 +42,7 @@ export const useProjectsStore = defineStore('projects', {
         (project) => project.title.toLocaleLowerCase('uk-UA') ===
           title.toLocaleLowerCase('uk-UA'),
       )
+
       if (duplicate) return null
 
       const project = { id: `project-${this.nextProjectId}`, title }

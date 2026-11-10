@@ -8,6 +8,9 @@ defineProps({
   sort: { type: String, default: 'newest' },
   projects: { type: Array, required: true },
   unfinishedOnly: { type: Boolean, default: false },
+
+  // Додаткове завдання №5.
+  withoutDueDateOnly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -17,6 +20,7 @@ const emit = defineEmits([
   'update:project',
   'update:sort',
   'update:unfinishedOnly',
+  'update:withoutDueDateOnly',
   'reset',
 ])
 </script>
@@ -111,6 +115,16 @@ const emit = defineEmits([
       @click="emit('update:unfinishedOnly', !unfinishedOnly)"
     >
       {{ unfinishedOnly ? '✓ Тільки невиконані' : 'Тільки невиконані' }}
+    </button>
+
+    <!-- Додаткове завдання №5 -->
+    <button
+      type="button"
+      class="tf5-btn"
+      :aria-pressed="withoutDueDateOnly"
+      @click="emit('update:withoutDueDateOnly', !withoutDueDateOnly)"
+    >
+      {{ withoutDueDateOnly ? '✓ Лише без терміну' : 'Лише без терміну' }}
     </button>
 
     <button

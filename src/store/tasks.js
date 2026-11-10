@@ -42,10 +42,18 @@ function normalizeTaskData(data, projects, originalDueDate = null) {
   if (!allowedStatuses.includes(data.status)) return null
   if (!allowedPriorities.includes(data.priority)) return null
   if (!allowedCategories.includes(data.category ?? 'study')) return null
-  if (!validDate(data.dueDate)) return null
 
-  // Минула дата дозволена лише тоді, коли її не змінювали.
-  if (data.dueDate < todayDate() && data.dueDate !== originalDueDate) {
+  // Дата завершення тепер необов'язкова.
+  const dueDate = data.dueDate ?? ''
+
+  if (dueDate !== '' && !validDate(dueDate)) return null
+
+  // Минулу дату дозволяємо лише без змін.
+  if (
+    dueDate !== '' &&
+    dueDate < todayDate() &&
+    dueDate !== originalDueDate
+  ) {
     return null
   }
 
@@ -55,7 +63,7 @@ function normalizeTaskData(data, projects, originalDueDate = null) {
     status: data.status,
     priority: data.priority,
     category: data.category ?? 'study',
-    dueDate: data.dueDate,
+    dueDate,
     projectId,
   }
 }
@@ -66,6 +74,7 @@ export const useTasksStore = defineStore('tasks', {
       ...task,
       category: task.category ?? 'study',
       projectId: task.projectId ?? 'general',
+      dueDate: task.dueDate ?? '',
     })),
 
     searchText: '',
@@ -74,6 +83,9 @@ export const useTasksStore = defineStore('tasks', {
     selectedProject: 'all',
     sortOrder: 'newest',
     unfinishedOnly: false,
+
+    // Додаткове завдання №5.
+    withoutDueDateOnly: false,
   }),
 
   getters: {
@@ -90,6 +102,7 @@ export const useTasksStore = defineStore('tasks', {
 
     completionRate() {
       if (this.totalTasks === 0) return 0
+
       return Math.round((this.completedTasks / this.totalTasks) * 100)
     },
 
@@ -130,11 +143,16 @@ export const useTasksStore = defineStore('tasks', {
         const matchesUnfinished =
           !state.unfinishedOnly || task.status !== 'done'
 
+        // Показуємо лише завдання без дати завершення.
+        const matchesWithoutDueDate =
+          !state.withoutDueDateOnly || !task.dueDate
+
         return matchesText &&
           matchesStatus &&
           matchesPriority &&
           matchesProject &&
-          matchesUnfinished
+          matchesUnfinished &&
+          matchesWithoutDueDate
       })
 
       // Сортуємо окремий масив, не змінюючи state.tasks.
@@ -267,6 +285,32 @@ export const useTasksStore = defineStore('tasks', {
       return true
     },
 
+    // Додаткове завдання №4.
+    // Групова зміна статусу завдань вибраного проєкту.
+    setProjectTasksInProgress(projectId) {
+      const projectStore = useProjectsStore()
+
+      const projectExists = projectStore.projects.some(
+        (project) => project.id === projectId
+      )
+
+      if (!projectExists) return 0
+
+      let updatedCount = 0
+
+      this.tasks.forEach((task) => {
+        if (
+          task.projectId === projectId &&
+          task.status !== 'progress'
+        ) {
+          task.status = 'progress'
+          updatedCount++
+        }
+      })
+
+      return updatedCount
+    },
+
     resetFilters() {
       this.searchText = ''
       this.selectedStatus = 'all'
@@ -274,6 +318,7 @@ export const useTasksStore = defineStore('tasks', {
       this.selectedProject = 'all'
       this.sortOrder = 'newest'
       this.unfinishedOnly = false
+      this.withoutDueDateOnly = false
     },
   },
 })

@@ -24,10 +24,12 @@ const {
   selectedProject,
   sortOrder,
   unfinishedOnly,
+  withoutDueDateOnly,
   completionPercent,
 } = storeToRefs(taskStore)
 
-const { projects } = storeToRefs(projectStore)
+// Статистика проєктів надходить із Pinia.
+const { projects, projectStats } = storeToRefs(projectStore)
 
 const formVisible = ref(false)
 const editingId = ref(null)
@@ -36,22 +38,28 @@ const feedback = ref('')
 const newProjectTitle = ref('')
 const newProjectError = ref('')
 
-// Кількість завдань у кожному проєкті.
-const projectStats = computed(() =>
-  projects.value.map((project) => ({
-    ...project,
-    taskCount: tasks.value.filter(
-      (task) => task.projectId === project.id
-    ).length,
-  }))
-)
-
-// Частина інтерфейсу, яка потрібна тільки цій сторінці.
+// Локальний стан сторінки.
 const isTaskListEmpty = computed(() => tasks.value.length === 0)
 
 const editingTask = computed(() =>
   tasks.value.find((task) => task.id === editingId.value) ?? null
 )
+
+// Поточний вибраний проєкт.
+const currentProject = computed(() =>
+  projects.value.find(
+    (project) => project.id === selectedProject.value
+  ) ?? null
+)
+
+// Кількість завдань вибраного проєкту.
+const currentProjectTaskCount = computed(() => {
+  if (!currentProject.value) return 0
+
+  return tasks.value.filter(
+    (task) => task.projectId === currentProject.value.id
+  ).length
+})
 
 function resetFilters() {
   taskStore.resetFilters()
@@ -143,6 +151,36 @@ function createProject() {
   selectedProject.value = project.id
 
   feedback.value = `Проєкт «${project.title}» створено.`
+}
+
+// Додаткове завдання №4.
+// Групова зміна статусу з підтвердженням.
+function moveProjectTasksToProgress() {
+  const project = currentProject.value
+
+  if (!project) {
+    feedback.value = 'Спочатку виберіть конкретний проєкт.'
+    return
+  }
+
+  if (currentProjectTaskCount.value === 0) {
+    feedback.value = `У проєкті «${project.title}» немає завдань.`
+    return
+  }
+
+  const confirmed = window.confirm(
+    `Перевести всі завдання проєкту «${project.title}» ` +
+    `(${currentProjectTaskCount.value}) у статус «У роботі»?\n\n` +
+    'Це також змінить статус уже виконаних завдань.'
+  )
+
+  if (!confirmed) return
+
+  const updatedCount = taskStore.setProjectTasksInProgress(project.id)
+
+  feedback.value = updatedCount > 0
+    ? `У проєкті «${project.title}» змінено статус ${updatedCount} завдань.`
+    : `Усі завдання проєкту «${project.title}» уже мають статус «У роботі».`
 }
 </script>
 
@@ -239,9 +277,36 @@ function createProject() {
         v-model:project="selectedProject"
         v-model:sort="sortOrder"
         v-model:unfinishedOnly="unfinishedOnly"
+        v-model:withoutDueDateOnly="withoutDueDateOnly"
         :projects="projects"
         @reset="resetFilters"
       />
+
+      <!-- Групове переведення завдань проєкту -->
+      <section
+        class="tf5-panel"
+        aria-label="Групове керування завданнями"
+      >
+        <h2>Групове керування завданнями</h2>
+
+        <p v-if="currentProject">
+          Обраний проєкт: <strong>{{ currentProject.title }}</strong>.
+          Завдань: {{ currentProjectTaskCount }}.
+        </p>
+
+        <p v-else>
+          Виберіть конкретний проєкт у фільтрі вище.
+        </p>
+
+        <button
+          type="button"
+          class="tf5-btn tf5-btn--primary"
+          :disabled="!currentProject || currentProjectTaskCount === 0"
+          @click="moveProjectTasksToProgress"
+        >
+          Перевести всі у роботу
+        </button>
+      </section>
 
       <section class="tf3-section">
         <div class="tf3-section-heading">

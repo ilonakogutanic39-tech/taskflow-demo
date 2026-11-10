@@ -123,9 +123,11 @@ const errors = computed(() => {
     result.projectId = 'Оберіть проєкт зі списку.'
   }
 
-  if (!isValidDate(form.dueDate)) {
+  // Дата необов'язкова. Якщо вона вказана, перевіряємо її.
+  if (form.dueDate && !isValidDate(form.dueDate)) {
     result.dueDate = 'Укажіть коректну дату завершення.'
   } else if (
+    form.dueDate &&
     form.dueDate < todayDate() &&
     form.dueDate !== props.task?.dueDate
   ) {
@@ -334,7 +336,7 @@ function submitForm() {
       </div>
 
       <div class="tf4-field tf4-field--wide">
-        <label for="tf4-date">Дата завершення *</label>
+        <label for="tf4-date">Дата завершення</label>
 
         <input
           id="tf4-date"
@@ -342,8 +344,11 @@ function submitForm() {
           type="date"
           :aria-invalid="showErrors && !!errors.dueDate"
           :aria-describedby="showErrors && errors.dueDate ? 'tf4-date-error' : undefined"
-          aria-required="true"
         />
+
+        <small>
+          Необов'язкове поле. Залиште порожнім, якщо терміну немає.
+        </small>
 
         <p
           v-if="showErrors && errors.dueDate"
