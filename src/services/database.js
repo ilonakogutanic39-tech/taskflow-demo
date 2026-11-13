@@ -6,7 +6,7 @@ const DB_VERSION = 1
 
 let databasePromise = null
 
-// Відкриваємо базу даних IndexedDB.
+// Відкриваємо базу IndexedDB.
 export function getDatabase() {
   if (typeof indexedDB === 'undefined') {
     return Promise.reject(
@@ -42,7 +42,7 @@ export function getDatabase() {
   return databasePromise
 }
 
-// Зчитуємо завдання, проєкти та службові значення.
+// Читаємо всі дані, включно з часом останнього запису.
 export async function readSnapshot() {
   const db = await getDatabase()
 
@@ -51,13 +51,23 @@ export async function readSnapshot() {
     'readonly'
   )
 
-  const [tasks, projects, initialized, nextProjectId] =
-    await Promise.all([
-      tx.objectStore('tasks').getAll(),
-      tx.objectStore('projects').getAll(),
-      tx.objectStore('metadata').get('initialized'),
-      tx.objectStore('metadata').get('nextProjectId'),
-    ])
+  const taskStore = tx.objectStore('tasks')
+  const projectStore = tx.objectStore('projects')
+  const metadataStore = tx.objectStore('metadata')
+
+  const [
+    tasks,
+    projects,
+    initialized,
+    nextProjectId,
+    lastSavedAt,
+  ] = await Promise.all([
+    taskStore.getAll(),
+    projectStore.getAll(),
+    metadataStore.get('initialized'),
+    metadataStore.get('nextProjectId'),
+    metadataStore.get('lastSavedAt'),
+  ])
 
   await tx.done
 
@@ -66,16 +76,16 @@ export async function readSnapshot() {
     projects,
     initialized: initialized === true,
     nextProjectId,
+    lastSavedAt: lastSavedAt ?? null,
   }
 }
 
-// Порівнюємо старі та нові записи.
+// Перевіряємо, чи змінився запис.
 function recordsEqual(oldRecord, newRecord) {
   return JSON.stringify(oldRecord) === JSON.stringify(newRecord)
 }
 
-// Оновлюємо тільки записи, які змінилися.
-// Видалені записи прибираємо через delete().
+// Синхронізуємо тільки змінені записи.
 function synchronizeStore(store, existingRecords, newRecords) {
   const operations = []
 
@@ -87,7 +97,7 @@ function synchronizeStore(store, existingRecords, newRecords) {
     newRecords.map((record) => [record.id, record])
   )
 
-  // Додаємо нові та оновлюємо змінені записи.
+  // Створюємо нові та оновлюємо змінені записи.
   for (const record of newRecords) {
     const oldRecord = oldMap.get(record.id)
 
@@ -96,7 +106,7 @@ function synchronizeStore(store, existingRecords, newRecords) {
     }
   }
 
-  // Видаляємо записи, яких більше немає у Pinia.
+  // Видаляємо лише відсутні записи.
   for (const oldRecord of existingRecords) {
     if (!newMap.has(oldRecord.id)) {
       operations.push(store.delete(oldRecord.id))
@@ -106,7 +116,7 @@ function synchronizeStore(store, existingRecords, newRecords) {
   return operations
 }
 
-// Атомарно синхронізуємо Pinia з IndexedDB.
+// Зберігаємо дані в одній атомарній транзакції.
 export async function writeSnapshot(snapshot) {
   const db = await getDatabase()
 
@@ -119,14 +129,14 @@ export async function writeSnapshot(snapshot) {
   const projectStore = tx.objectStore('projects')
   const metadataStore = tx.objectStore('metadata')
 
-  // Читаємо поточні записи без очищення сховищ.
   const [existingTasks, existingProjects] =
     await Promise.all([
       taskStore.getAll(),
       projectStore.getAll(),
     ])
 
-  // Змінюємо лише необхідні записи.
+  const lastSavedAt = new Date().toISOString()
+
   const operations = [
     ...synchronizeStore(
       taskStore,
@@ -146,8 +156,18 @@ export async function writeSnapshot(snapshot) {
       snapshot.nextProjectId,
       'nextProjectId'
     ),
+
+    // Додаткове завдання № 4:
+    // записуємо час успішного збереження в metadata.
+    metadataStore.put(
+      lastSavedAt,
+      'lastSavedAt'
+    ),
   ]
 
-  // Очікуємо завершення всіх операцій і транзакції.
-  await Promise.all([...operations, tx.done])
+  await Promise.all(operations)
+  await tx.done
+
+  // Повертаємо час тільки після завершення транзакції.
+  return lastSavedAt
 }

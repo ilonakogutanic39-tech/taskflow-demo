@@ -20,7 +20,7 @@ let savedRevision = 0
 let lastRequestedSnapshot = ''
 let scheduled = false
 
-// JSON-серіалізація перетворює реактивні об'єкти Pinia на звичайні дані.
+// Перетворюємо реактивні дані Pinia на звичайний об'єкт.
 function makeSnapshot() {
   return JSON.parse(JSON.stringify({
     tasks: taskStore.tasks,
@@ -29,9 +29,19 @@ function makeSnapshot() {
   }))
 }
 
-// В один момент часу виконуємо не більш як один запис в IndexedDB.
+// Перевіряємо дату, яку отримали з IndexedDB.
+function parseSavedDate(value) {
+  if (!value) return null
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+// Виконуємо збереження змін в IndexedDB.
 async function flushChanges() {
   if (!enabled || writing) return
+
   writing = true
 
   try {
@@ -40,14 +50,24 @@ async function flushChanges() {
       const snapshot = makeSnapshot()
 
       try {
-        await writeSnapshot(snapshot)
+        // writeSnapshot повертає час успішного запису.
+        const savedAt = await writeSnapshot(snapshot)
+
         savedRevision = targetRevision
-        persistenceState.lastSavedAt = new Date()
+
+        // Час беремо з підтвердженої транзакції IndexedDB.
+        persistenceState.lastSavedAt = parseSavedDate(savedAt)
       } catch (error) {
-        console.error('TaskFlow: збереження не вдалося:', error)
+        console.error(
+          'TaskFlow: збереження не вдалося:',
+          error
+        )
+
         persistenceState.status = 'error'
-        persistenceState.error = 'Зміни поки що залишилися лише в пам’яті.'
+        persistenceState.error =
+          'Зміни поки що залишилися лише в пам’яті.'
         persistenceState.canRetry = true
+
         return
       }
     }
@@ -60,14 +80,19 @@ async function flushChanges() {
   }
 }
 
+// Запит на збереження тільки у випадку зміни даних.
 function requestSave(force = false) {
   if (!enabled) return
 
   const fingerprint = JSON.stringify(makeSnapshot())
-  if (!force && fingerprint === lastRequestedSnapshot) return
+
+  if (!force && fingerprint === lastRequestedSnapshot) {
+    return
+  }
 
   lastRequestedSnapshot = fingerprint
   revision += 1
+
   persistenceState.status = 'saving'
   persistenceState.error = ''
   persistenceState.canRetry = false
@@ -75,23 +100,31 @@ function requestSave(force = false) {
   void flushChanges()
 }
 
-// Об'єднуємо синхронні зміни й не записуємо зміни лише у фільтрах.
+// Об'єднуємо синхронні зміни в один запит.
 function onStoreChanged() {
   if (scheduled) return
 
   scheduled = true
+
   queueMicrotask(() => {
     scheduled = false
     requestSave()
   })
 }
 
-// Кнопка повторної спроби використовується тільки після помилки запису.
+// Повторне збереження після помилки.
 export function retrySave() {
-  if (!enabled || persistenceState.status !== 'error') return
+  if (
+    !enabled ||
+    persistenceState.status !== 'error'
+  ) {
+    return
+  }
+
   requestSave(true)
 }
 
+// Ініціалізація локального збереження.
 export async function initializePersistence(pinia) {
   taskStore = useTasksStore(pinia)
   projectStore = useProjectsStore(pinia)
@@ -100,45 +133,84 @@ export async function initializePersistence(pinia) {
     const snapshot = await readSnapshot()
 
     if (snapshot.initialized) {
-      if (!Array.isArray(snapshot.tasks) || !Array.isArray(snapshot.projects)) {
-        throw new Error('Некоректний формат локальних даних.')
+      if (
+        !Array.isArray(snapshot.tasks) ||
+        !Array.isArray(snapshot.projects)
+      ) {
+        throw new Error(
+          'Некоректний формат локальних даних.'
+        )
       }
 
       const calculatedNextId = Math.max(
         0,
         ...snapshot.projects.map((project) => {
-          const match = /^project-(\d+)$/.exec(String(project.id))
+          const match = /^project-(\d+)$/.exec(
+            String(project.id)
+          )
+
           return match ? Number(match[1]) : 0
-        }),
+        })
       ) + 1
 
       projectStore.$patch({
         projects: snapshot.projects,
-        nextProjectId: Number.isSafeInteger(snapshot.nextProjectId) &&
+
+        nextProjectId:
+          Number.isSafeInteger(snapshot.nextProjectId) &&
           snapshot.nextProjectId >= calculatedNextId
-          ? snapshot.nextProjectId
-          : calculatedNextId,
+            ? snapshot.nextProjectId
+            : calculatedNextId,
       })
 
-      taskStore.$patch({ tasks: snapshot.tasks })
+      taskStore.$patch({
+        tasks: snapshot.tasks,
+      })
+
+      // Відновлюємо час із metadata.
+      // Після F5 поточний час замість нього не встановлюємо.
+      persistenceState.lastSavedAt =
+        parseSavedDate(snapshot.lastSavedAt)
     } else {
-      // Демонстраційні дані записуємо тільки під час першого запуску.
-      await writeSnapshot(makeSnapshot())
+      // Демонстраційні дані записуємо лише при першому запуску.
+      const savedAt = await writeSnapshot(makeSnapshot())
+
+      persistenceState.lastSavedAt =
+        parseSavedDate(savedAt)
     }
 
     persistenceState.status = 'saved'
-    persistenceState.lastSavedAt = new Date()
-    lastRequestedSnapshot = JSON.stringify(makeSnapshot())
+    persistenceState.error = ''
+    persistenceState.canRetry = false
+
+    lastRequestedSnapshot =
+      JSON.stringify(makeSnapshot())
+
     enabled = true
 
-    // Слухаємо зміни стану обох сховищ; фільтри не записуємо.
-    taskStore.$subscribe(onStoreChanged, { detached: true, flush: 'sync' })
-    projectStore.$subscribe(onStoreChanged, { detached: true, flush: 'sync' })
+    // Стежимо за змінами завдань і проєктів.
+    // Пошукові фільтри не спричиняють зайвих записів.
+    taskStore.$subscribe(onStoreChanged, {
+      detached: true,
+      flush: 'sync',
+    })
+
+    projectStore.$subscribe(onStoreChanged, {
+      detached: true,
+      flush: 'sync',
+    })
   } catch (error) {
-    console.error('TaskFlow: IndexedDB недоступна:', error)
+    console.error(
+      'TaskFlow: IndexedDB недоступна:',
+      error
+    )
+
     persistenceState.status = 'error'
-    persistenceState.error = 'Не вдалося відкрити або відновити локальні дані. '
-      + 'Працює лише тимчасовий стан; наявну базу не перезаписано.'
+    persistenceState.error =
+      'Не вдалося відкрити або відновити локальні дані. ' +
+      'Працює лише тимчасовий стан; ' +
+      'наявну базу не перезаписано.'
+
     persistenceState.canRetry = false
   }
 }
