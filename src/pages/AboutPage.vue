@@ -1,3 +1,4 @@
+
 <template>
   <f7-page name="about">
     <f7-navbar title="Про застосунок" />
@@ -27,6 +28,8 @@
           <span>Framework7</span>
           <span>Vite</span>
           <span>PWA</span>
+          <span>Pinia</span>
+          <span>IndexedDB</span>
         </div>
       </div>
 
@@ -47,6 +50,25 @@
           Переглянути інструкцію
         </f7-button>
       </div>
+
+      <!-- КП 2/10. Додаткове завдання № 5 -->
+      <div class="info-card">
+        <h3>Налаштування локального збереження</h3>
+
+        <p>
+          Перегляньте стан IndexedDB, кількість збережених
+          завдань і проєктів та інформацію про останнє
+          збереження або відновлення даних.
+        </p>
+
+        <f7-button
+          fill
+          href="/settings/"
+          class="page-action"
+        >
+          Налаштування збереження
+        </f7-button>
+      </div>
     </div>
 
     <AppTabbar active="about" />
@@ -54,5 +76,5 @@
 </template>
 
 <script setup>
-import AppTabbar from '../components/AppTabbar.vue';
+import AppTabbar from '../components/AppTabbar.vue'
 </script>
